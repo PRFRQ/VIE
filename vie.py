@@ -4,6 +4,7 @@ import requests
 import json
 import re
 import os
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -242,8 +243,8 @@ if response.status_code == 200:
         
         # Traitement de chaque nouvelle offre
         success_count = 0
-        for new_id in new_ids:
-            log(f"📝 Traitement de l'offre {new_id}...")
+        for idx, new_id in enumerate(new_ids, 1):
+            log(f"📝 Traitement de l'offre {new_id} ({idx}/{len(new_ids)})...")
             
             # Récupération des détails
             offer_details = get_offer_details(new_id)
@@ -252,6 +253,11 @@ if response.status_code == 200:
                 # Envoi de la notification Discord
                 if send_discord_notification(offer_details):
                     success_count += 1
+                    
+                # Délai entre chaque notification pour éviter le rate limit Discord
+                # Discord limite à ~5 requêtes par seconde pour les webhooks
+                if idx < len(new_ids):  # Pas de délai après la dernière
+                    time.sleep(1.5)  # Attendre 1.5 secondes entre chaque notification
             else:
                 log(f"⚠️ Impossible de récupérer les détails de l'offre {new_id}")
         
