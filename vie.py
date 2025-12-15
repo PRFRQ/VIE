@@ -1,13 +1,24 @@
 #!/usr/bin/python3
+# -*- coding: latin-1 -*-
+
 import requests
 import json
 import re
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Charge les variables d'environnement depuis .env
+load_dotenv()
 
 #---------------CONFIGURATION---------------
-# Configuration Discord Webhook
-DISCORD_WEBHOOK_URL = ""
+# Configuration Discord Webhook (depuis variable d'environnement)
+DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
+
+if not DISCORD_WEBHOOK_URL:
+    print("❌ ERREUR: La variable d'environnement DISCORD_WEBHOOK_URL n est pas definie")
+    print("💡 Creez un fichier .env a partir de .env.example et configurez votre webhook")
+    exit(1)
 
 # Chemins de fichiers (relatif au script)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,12 +36,12 @@ def log(message):
     print(f"[{timestamp}] {message}")
 
 def get_existing_ids(filename):
-    """Récupère les VIE déjà connus depuis le fichier"""
+    """Recupere les VIE deja connus depuis le fichier"""
     try:
         with open(filename, 'r') as f:
             return set(line.strip() for line in f if line.strip())
     except FileNotFoundError:
-        log(f"Fichier {filename} non trouvé, création d'un nouveau fichier")
+        log(f"Fichier {filename} non trouve, creation d un nouveau fichier")
         return set()
 
 def write_new_ids(filename, ids):
@@ -53,20 +64,19 @@ def clean_contact_name(contact_name):
     if not contact_name:
         return ""
     contact_name = contact_name.strip()
-    # Supprime les civilités
+    # Supprime les civilites
     contact_name = re.sub(r'^(Madame|Monsieur)\s+', '', contact_name, flags=re.IGNORECASE)
     contact_name = contact_name.strip()
     return contact_name.replace(' ', '%20')
 
 def get_offer_details(offer_id):
-    """Récupère les détails d'une offre via l'API"""
     try:
         url = f"{API_DETAILS_URL}/{offer_id}"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        log(f"Erreur lors de la récupération des détails de l'offre {offer_id}: {e}")
+        log(f"Erreur lors de la recuperation des details de l offre {offer_id}: {e}")
         return None
 
 def send_discord_notification(offer_data):
@@ -77,7 +87,7 @@ def send_discord_notification(offer_data):
         linkedin_url = f"https://www.linkedin.com/search/results/all/?keywords={contact_name}" if contact_name else "N/A"
         businessfrance_url = f"https://mon-vie-via.businessfrance.fr/offres/{offer_id}"
         
-        # Prépare le contenu de la notification
+        # Prepare le contenu de la notification
         content = {
             "embeds": [
                 {
@@ -109,7 +119,7 @@ def send_discord_notification(offer_data):
                             "inline": True
                         },
                         {
-                            "name": "💵 Indemnité",
+                            "name": "💵 Indemnite",
                             "value": f"{offer_data.get('indemnite', 0):.2f} €",
                             "inline": True
                         },
@@ -167,12 +177,12 @@ def send_discord_notification(offer_data):
 log("🔍 Début de la recherche de nouvelles offres VIE")
 
 # Configuration de la recherche
-# limit = nombre d'offres, query = mot clé, missionsDurations = durée VIE, geographicZones = continents
+# limit = nombre d'offres, query = mot cle, missionsDurations = durée VIE, geographicZones = continents
 payload = {
-    "limit": 1000,
+    "limit": int(os.getenv('SEARCH_LIMIT', 1000)),
     "skip": 0,
     "latest": ["true"],  # Récupérer les dernières offres
-    "query": "engineer",
+    "query": os.getenv('SEARCH_QUERY', 'engineer'),
     "missionsDurations": [],
     "geographicZones": ["2", "3", "4", "6", "5", "8"],  # Tous les continents
     "activitySectorId": [],
@@ -204,9 +214,6 @@ try:
 except requests.exceptions.RequestException as e:
     log(f"❌ Erreur lors de la requête API: {e}")
     exit(1)
-
-# Traitement de la réponse
-if response.status_code == 200:
 
 # Traitement de la réponse
 if response.status_code == 200:
@@ -260,5 +267,4 @@ else:
     exit(1)
 
 log("✅ Recherche terminée")
-
 
