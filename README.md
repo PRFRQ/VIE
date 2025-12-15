@@ -16,9 +16,9 @@ Ce script Python permet de détecter automatiquement la publication de nouvelles
 ## 📋 Prérequis
 
 - Python 3.6 ou supérieur
-- Bibliothèque `requests` :
+- Bibliothèques Python :
   ```bash
-  pip install requests
+  pip install -r requirements.txt
   ```
 
 ## 🚀 Installation
@@ -31,13 +31,26 @@ Ce script Python permet de détecter automatiquement la publication de nouvelles
 
 2. Installez les dépendances :
    ```bash
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
-3. Configurez votre Webhook Discord dans le fichier `vie.py` (ligne 10) :
-   ```python
-   DISCORD_WEBHOOK_URL = "votre_webhook_discord_ici"
+3. **Configurez vos variables d'environnement** :
+   ```bash
+   # Copiez le fichier d'exemple
+   cp .env.example .env
+   
+   # Éditez le fichier .env et ajoutez votre webhook Discord
+   nano .env  # ou vim, code, etc.
    ```
+
+4. Dans le fichier `.env`, configurez :
+   ```bash
+   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/VOTRE_WEBHOOK_ICI
+   SEARCH_QUERY=engineer
+   SEARCH_LIMIT=1000
+   ```
+
+⚠️ **Important** : Le fichier `.env` contient vos secrets. Il est automatiquement ignoré par Git (.gitignore).
 
 ## ⚙️ Configuration
 

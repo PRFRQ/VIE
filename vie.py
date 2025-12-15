@@ -4,10 +4,19 @@ import json
 import re
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Charge les variables d'environnement depuis .env
+load_dotenv()
 
 #---------------CONFIGURATION---------------
-# Configuration Discord Webhook
-DISCORD_WEBHOOK_URL = ""
+# Configuration Discord Webhook (depuis variable d'environnement)
+DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
+
+if not DISCORD_WEBHOOK_URL:
+    print("❌ ERREUR: La variable d'environnement DISCORD_WEBHOOK_URL n'est pas définie")
+    print("💡 Créez un fichier .env à partir de .env.example et configurez votre webhook")
+    exit(1)
 
 # Chemins de fichiers (relatif au script)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -169,10 +178,10 @@ log("🔍 Début de la recherche de nouvelles offres VIE")
 # Configuration de la recherche
 # limit = nombre d'offres, query = mot clé, missionsDurations = durée VIE, geographicZones = continents
 payload = {
-    "limit": 1000,
+    "limit": int(os.getenv('SEARCH_LIMIT', 1000)),
     "skip": 0,
     "latest": ["true"],  # Récupérer les dernières offres
-    "query": "engineer",
+    "query": os.getenv('SEARCH_QUERY', 'engineer'),
     "missionsDurations": [],
     "geographicZones": ["2", "3", "4", "6", "5", "8"],  # Tous les continents
     "activitySectorId": [],
@@ -204,9 +213,6 @@ try:
 except requests.exceptions.RequestException as e:
     log(f"❌ Erreur lors de la requête API: {e}")
     exit(1)
-
-# Traitement de la réponse
-if response.status_code == 200:
 
 # Traitement de la réponse
 if response.status_code == 200:
