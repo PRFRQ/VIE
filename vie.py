@@ -7,7 +7,7 @@ from datetime import datetime
 
 #---------------CONFIGURATION---------------
 # Configuration Discord Webhook
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1240426483466375198/xXPGAy6CmJFg_-Nik5h3ZM7dEuQ_NKWMEDAECj-sGr6sjP-5P2mhE49_qotkwrlMC_SY"
+DISCORD_WEBHOOK_URL = ""
 
 # Chemins de fichiers (relatif au script)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -260,4 +260,5 @@ else:
     exit(1)
 
 log("✅ Recherche terminée")
+
 
