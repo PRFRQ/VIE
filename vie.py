@@ -1,176 +1,268 @@
 #!/usr/bin/python3
+
 import requests
 import json
 import re
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Charge les variables d'environnement depuis .env
+load_dotenv()
+
+#---------------CONFIGURATION---------------
+# Configuration Discord Webhook (depuis variable d'environnement)
+DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
+
+if not DISCORD_WEBHOOK_URL:
+    print("❌ ERREUR: La variable d'environnement DISCORD_WEBHOOK_URL n est pas definie")
+    print("💡 Creez un fichier .env a partir de .env.example et configurez votre webhook")
+    exit(1)
+
+# Chemins de fichiers (relatif au script)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IDS_FILE = os.path.join(SCRIPT_DIR, 'ids.txt')
+
+# Configuration API
+API_BASE_URL = "https://civiweb-api-prd.azurewebsites.net/api"
+API_SEARCH_URL = f"{API_BASE_URL}/Offers/search"
+API_DETAILS_URL = f"{API_BASE_URL}/Offers/details"
+
 #---------------FONCTIONS---------------
-# Récupère les VIE déjà connus
+def log(message):
+    """Affiche un message avec timestamp"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}")
+
 def get_existing_ids(filename):
+    """Recupere les VIE deja connus depuis le fichier"""
     try:
         with open(filename, 'r') as f:
-            return set(line.strip() for line in f)
+            return set(line.strip() for line in f if line.strip())
     except FileNotFoundError:
+        log(f"Fichier {filename} non trouve, creation d un nouveau fichier")
         return set()
-# Sauvegarde les VIE connus
+
 def write_new_ids(filename, ids):
+    """Sauvegarde les nouveaux VIE dans le fichier"""
     with open(filename, 'a') as f:
         for id in ids:
             f.write(f'{id}\n')
 
-#---------------------------------------
-# URL de l'API à interroger(Récupère les offres avec les options sélectionnés continent pays durée etc définit dans le payload)
-api_url = "https://civiweb-api-prd.azurewebsites.net/api/Offers/search"
+def format_date(date_string):
+    """Formate une date ISO en format lisible (YYYY-MM-DD)"""
+    if not date_string:
+        return "N/A"
+    try:
+        return date_string.split('T')[0]
+    except:
+        return date_string
 
-# limit = nbr d'offre, query = mot clé , missionsDurations = durrée VIE, gerographicZones = continent
+def clean_contact_name(contact_name):
+    """Nettoie le nom du contact pour LinkedIn"""
+    if not contact_name:
+        return ""
+    contact_name = contact_name.strip()
+    # Supprime les civilites
+    contact_name = re.sub(r'^(Madame|Monsieur)\s+', '', contact_name, flags=re.IGNORECASE)
+    contact_name = contact_name.strip()
+    return contact_name.replace(' ', '%20')
+
+def get_offer_details(offer_id):
+    try:
+        url = f"{API_DETAILS_URL}/{offer_id}"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        log(f"Erreur lors de la recuperation des details de l offre {offer_id}: {e}")
+        return None
+
+def send_discord_notification(offer_data):
+    """Envoie une notification Discord pour une nouvelle offre"""
+    try:
+        offer_id = str(offer_data['id'])
+        contact_name = clean_contact_name(offer_data.get('contactName', ''))
+        linkedin_url = f"https://www.linkedin.com/search/results/all/?keywords={contact_name}" if contact_name else "N/A"
+        businessfrance_url = f"https://mon-vie-via.businessfrance.fr/offres/{offer_id}"
+        
+        # Prepare le contenu de la notification
+        content = {
+            "embeds": [
+                {
+                    "title": offer_data.get('missionTitle', 'Sans titre'),
+                    "fields": [
+                        {
+                            "name": "🏭 Entreprise",
+                            "value": offer_data.get('organizationName', 'N/A'),
+                            "inline": True
+                        },
+                        {
+                            "name": "📅 Durée (mois)",
+                            "value": str(offer_data.get('missionDuration', 'N/A')),
+                            "inline": True
+                        },
+                        {
+                            "name": "⚙️ Secteur",
+                            "value": offer_data.get('activitySectorN1', 'N/A') or 'N/A',
+                            "inline": True
+                        },
+                        {
+                            "name": "🏙️ Ville",
+                            "value": offer_data.get('cityName', 'N/A').strip() if offer_data.get('cityName') else 'N/A',
+                            "inline": True
+                        },
+                        {
+                            "name": "🗺️ Pays",
+                            "value": offer_data.get('countryName', 'N/A'),
+                            "inline": True
+                        },
+                        {
+                            "name": "💵 Indemnite",
+                            "value": f"{offer_data.get('indemnite', 0):.2f} €",
+                            "inline": True
+                        },
+                        {
+                            "name": "🎬 Début",
+                            "value": format_date(offer_data.get('missionStartDate')),
+                            "inline": True
+                        },
+                        {
+                            "name": "🏁 Fin",
+                            "value": format_date(offer_data.get('missionEndDate')),
+                            "inline": True
+                        },
+                        {
+                            "name": "📧 Email",
+                            "value": offer_data.get('contactEmail', 'N/A'),
+                            "inline": True
+                        },
+                        {
+                            "name": "🌐 Business France",
+                            "value": f"[Voir Offre]({businessfrance_url})",
+                            "inline": True
+                        },
+                        {
+                            "name": "🔗 LinkedIn",
+                            "value": f"[Rechercher Contact]({linkedin_url})" if contact_name else "N/A",
+                            "inline": True
+                        },
+                        {
+                            "name": "💼 Télétravail",
+                            "value": "✅ Oui" if offer_data.get('teleworkingAvailable') else "❌ Non",
+                            "inline": True
+                        }
+                    ],
+                    "color": 3447003,  # Bleu
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ]
+        }
+        
+        response = requests.post(
+            DISCORD_WEBHOOK_URL,
+            data=json.dumps(content),
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        response.raise_for_status()
+        log(f"✅ Notification envoyée pour l'offre {offer_id}")
+        return True
+    except Exception as e:
+        log(f"❌ Erreur lors de l'envoi de la notification Discord: {e}")
+        return False
+
+#---------------SCRIPT PRINCIPAL---------------
+log("🔍 Début de la recherche de nouvelles offres VIE")
+
+# Configuration de la recherche
+# limit = nombre d'offres, query = mot cle, missionsDurations = durée VIE, geographicZones = continents
 payload = {
-    "limit": 1000,
+    "limit": int(os.getenv('SEARCH_LIMIT', 1000)),
     "skip": 0,
-    "query": "engineer",
+    "latest": ["true"],  # Récupérer les dernières offres
+    "query": os.getenv('SEARCH_QUERY', 'engineer'),
     "missionsDurations": [],
-    "gerographicZones": ["2", "3", "4", "6", "5", "8"],
+    "geographicZones": ["2", "3", "4", "6", "5", "8"],  # Tous les continents
     "activitySectorId": [],
     "missionsTypesIds": [],
     "countriesIds": [],
     "studiesLevelId": [],
     "companiesSizes": [],
     "specializationsIds": [],
-    "entreprisesIds": [
-        0
-    ],
+    "entreprisesIds": [0],
     "missionStartDate": None
 }
-# On convertit le payload en JSON pour transformer None en "null"
-payload_json = json.dumps(payload)
 
-# Envoie de la reqête
-response = requests.post(api_url, data=payload_json, headers={'Content-Type': 'application/json'})
+# Envoi de la requête de recherche
+try:
+    log(f"📡 Interrogation de l'API: {API_SEARCH_URL}")
+    response = requests.post(
+        API_SEARCH_URL,
+        data=json.dumps(payload),
+        headers={
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Origin': 'https://mon-vie-via.businessfrance.fr',
+            'Referer': 'https://mon-vie-via.businessfrance.fr/',
+            'User-Agent': 'Mozilla/5.0'
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+except requests.exceptions.RequestException as e:
+    log(f"❌ Erreur lors de la requête API: {e}")
+    exit(1)
 
-# Vérifiez si la requête a réussi
+# Traitement de la réponse
 if response.status_code == 200:
-    # Traitez les données (ici, nous les imprimons simplement)
     data = response.json()
-
-    # Extrait les IDs
-    ids = [item['id'] for item in data['result']]
-
-    # On récupère les VIE que l'on connait déjà
-    existing_ids = get_existing_ids('/home/stc/findVIE/ids.txt')
+    total_count = data.get('count', 0)
+    log(f"📊 Total d'offres correspondantes: {total_count}")
     
-    # Trouvez les nouveaux IDs
+    # Extraction des IDs des offres
+    offers = data.get('result', [])
+    if not offers:
+        log("ℹ️ Aucune offre trouvée")
+        exit(0)
+    
+    ids = [item['id'] for item in offers]
+    log(f"📋 {len(ids)} offres récupérées")
+    
+    # Récupération des IDs déjà connus
+    existing_ids = get_existing_ids(IDS_FILE)
+    log(f"💾 {len(existing_ids)} offres déjà connues")
+    
+    # Identification des nouvelles offres
     new_ids = [id for id in ids if str(id) not in existing_ids]
     
-   # ...
-    # Enregistre les nouveaux IDs dans un fichier
-    write_new_ids('/home/stc/findVIE/ids.txt', new_ids)
-
-    # URL du webhook Discord
-    discord_webhook_url = "https://discord.com/api/webhooks/1240426483466375198/xXPGAy6CmJFg_-Nik5h3ZM7dEuQ_NKWMEDAECj-sGr6sjP-5P2mhE49_qotkwrlMC_SY"
-
-    # Convertit la liste d'ID en string
-    new_ids_str = ', '.join(str(id) for id in new_ids)
-    new_ids_int = list(map(int, new_ids))
-
-    for new_id in new_ids:
-        # Convertit l'ID en string
-        new_id_str = str(new_id)
-        api_url = "https://civiweb-api-prd.azurewebsites.net/api/Offers/details/" + new_id_str
-        response = requests.get(api_url)
-        data = response.json()
-
-        # Obtenez la date de début et de fin
-        start_date = data['missionStartDate']
-        end_date = data['missionEndDate']
-
-        # Supprimez l'heure
-        start_date = start_date.split('T')[0]
-        end_date = end_date.split('T')[0]
+    if new_ids:
+        log(f"🆕 {len(new_ids)} nouvelle(s) offre(s) détectée(s): {new_ids}")
         
-        # Obtenez le nom du contact
-        contact_name = data['contactName'].strip()
-
-        # Remplacez les espaces par des '+'
-        if contact_name.startswith("Madame "):
-            contact_name = contact_name.replace("Madame ", "", 1)
-        elif contact_name.startswith("Monsieur "):
-            contact_name = contact_name.replace("Monsieur ", "", 1)
-        contact_name = re.sub(r'^\s*', '', contact_name)
-        contact_name_url = contact_name.replace(' ', '%20')
-
-        # Ajoutez le nom du contact à l'URL LinkedIn
-        linkedin_url = "https://www.linkedin.com/search/results/all/?keywords=" + contact_name_url
-        businessFrance_url="https://mon-vie-via.businessfrance.fr/offres/"+new_id_str
-
-        # Préparez le contenu de la notification
-        content = {
-            "embeds": [
-                {
-                    "title": data['missionTitle'],
-                    "fields": [
-                        {
-                            "name": "🏭 Entreprise",
-                            "value": data['organizationName'],
-                            "inline": True
-                        },
-                        {
-                            "name": "📅 Durée (mois)",
-                            "value": str(data['missionDuration']),
-                            "inline": True
-                        },
-                        {
-                            "name": "⚙️ Secteur",
-                            "value": data['activitySectorN1'],
-                            "inline": True
-                        },
-                        {
-                            "name": "🏙️ Ville",
-                            "value": data['cityName'].strip(),
-                            "inline": True
-                        },
-                        {
-                            "name": "🗺️ Pays",
-                            "value": data['countryName'],
-                            "inline": True
-                        },
-                        {
-                            "name": "💵 Salaire",
-                            "value": str(data['indemnite']) + " €",
-                            "inline": True
-                        },
-                        {
-                            "name": "🎬 Début",
-                            "value": start_date,
-                            "inline": True
-                        },
-                        {
-                            "name": "🏁 Fin",
-                            "value": end_date,
-                            "inline": True
-                        },
-                        {
-                            "name": "📧 Email",
-                            "value": data['contactEmail'],
-                            "inline": True
-                        },
-                        {
-                            "name": "🌐 Business France",
-                            "value": "[Voir Offre]("+"{}".format(businessFrance_url)+")",
-                            "inline": True
-                        },
-                        {
-                            "name": "🌐 LinkedIn",
-                            "value": "[Voir Profil Recruteur]("+("{}".format(linkedin_url))+")",
-                            "inline": True
-                        }
-                    ],
-                    "color": 16711680  # Couleur de la barre latérale (rouge dans cet exemple)
-                }
-            ]
-        }
+        # Traitement de chaque nouvelle offre
+        success_count = 0
+        for new_id in new_ids:
+            log(f"📝 Traitement de l'offre {new_id}...")
+            
+            # Récupération des détails
+            offer_details = get_offer_details(new_id)
+            
+            if offer_details:
+                # Envoi de la notification Discord
+                if send_discord_notification(offer_details):
+                    success_count += 1
+            else:
+                log(f"⚠️ Impossible de récupérer les détails de l'offre {new_id}")
         
-        # Envoyez la notification à Discord via le webhook
-        requests.post(discord_webhook_url, data=json.dumps(content), headers={"Content-Type": "application/json"})
-
+        # Sauvegarde des nouveaux IDs
+        write_new_ids(IDS_FILE, new_ids)
+        log(f"💾 {len(new_ids)} ID(s) sauvegardé(s) dans {IDS_FILE}")
+        log(f"✅ {success_count}/{len(new_ids)} notification(s) envoyée(s) avec succès")
     else:
-        print("Aucun nouvel ID trouvé.")
-    
+        log("ℹ️ Aucune nouvelle offre trouvée")
+
 else:
-    print("La requête API a échoué avec le code d'état", response.status_code)
+    log(f"❌ La requête API a échoué avec le code {response.status_code}")
+    exit(1)
+
+log("✅ Recherche terminée")
