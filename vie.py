@@ -176,7 +176,7 @@ log("[START] Debut de la recherche de nouvelles offres VIE")
 # Configuration de la recherche
 # limit = nombre d'offres, query = mot clé, missionsDurations = durée VIE, geographicZones = continents
 payload = {
-    "limit": int(os.getenv('SEARCH_LIMIT', 1000)),
+    "limit": int(os.getenv('SEARCH_LIMIT', 5000)),
     "skip": 0,
     "latest": ["true"],  # Récupérer les dernières offres
     "query": os.getenv('SEARCH_QUERY', 'engineer'),
@@ -235,32 +235,46 @@ if response.status_code == 200:
     new_ids = [id for id in ids if str(id) not in existing_ids]
     
     if new_ids:
-        log(f"[NEW] {len(new_ids)} nouvelle(s) offre(s) detectee(s): {new_ids}")
+        log(f"[NEW] {len(new_ids)} nouvelle(s) offre(s) detectee(s)")
         
-        # Traitement de chaque nouvelle offre
-        success_count = 0
-        for idx, new_id in enumerate(new_ids, 1):
-            log(f"[PROCESS] Traitement de l'offre {new_id} ({idx}/{len(new_ids)})...")
-            
-            # Récupération des détails
+        # Récupération des détails de toutes les nouvelles offres pour tri
+        new_offers_details = []
+        for new_id in new_ids:
             offer_details = get_offer_details(new_id)
-            
             if offer_details:
-                # Envoi de la notification Discord
-                if send_discord_notification(offer_details):
-                    success_count += 1
-                    
-                # Delai entre chaque notification pour eviter le rate limit Discord
-                # Discord limite a ~5 requetes par seconde pour les webhooks
-                if idx < len(new_ids):  # Pas de delai apres la derniere
-                    time.sleep(1.5)  # Attendre 1.5 secondes entre chaque notification
+                new_offers_details.append(offer_details)
             else:
                 log(f"[WARNING] Impossible de recuperer les details de l'offre {new_id}")
         
-        # Sauvegarde des nouveaux IDs
-        write_new_ids(IDS_FILE, new_ids)
-        log(f"[SAVE] {len(new_ids)} ID(s) sauvegarde(s) dans {IDS_FILE}")
-        log(f"[SUCCESS] {success_count}/{len(new_ids)} notification(s) envoyee(s) avec succes")
+        if not new_offers_details:
+            log("[INFO] Aucune offre valide trouvee")
+        else:
+            # Tri des offres par date de création (ordre chronologique)
+            new_offers_details.sort(key=lambda x: x.get('creationDate', ''), reverse=False)
+            log(f"[SORT] {len(new_offers_details)} offre(s) triee(s) par ordre chronologique")
+            
+            # Envoi des notifications
+            success_count = 0
+            processed_ids = []
+            for idx, offer_details in enumerate(new_offers_details, 1):
+                offer_id = offer_details['id']
+                log(f"[PROCESS] Traitement de l'offre {offer_id} ({idx}/{len(new_offers_details)})...")
+                
+                # Envoi de la notification Discord
+                if send_discord_notification(offer_details):
+                    success_count += 1
+                    processed_ids.append(offer_id)
+                    
+                # Delai entre chaque notification pour eviter le rate limit Discord
+                # Discord limite a ~5 requetes par seconde pour les webhooks
+                if idx < len(new_offers_details):  # Pas de delai apres la derniere
+                    time.sleep(1.5)  # Attendre 1.5 secondes entre chaque notification
+            
+            # Sauvegarde des IDs traités
+            if processed_ids:
+                write_new_ids(IDS_FILE, processed_ids)
+                log(f"[SAVE] {len(processed_ids)} ID(s) sauvegarde(s) dans {IDS_FILE}")
+            log(f"[SUCCESS] {success_count}/{len(new_offers_details)} notification(s) envoyee(s) avec succes")
     else:
         log("[INFO] Aucune nouvelle offre trouvee")
 
