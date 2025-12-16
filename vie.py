@@ -50,11 +50,13 @@ def write_new_ids(filename, ids):
             f.write(f'{id}\n')
 
 def format_date(date_string):
-    """Formate une date ISO en format lisible (YYYY-MM-DD)"""
+    """Formate une date ISO en format lisible (DD/MM/YYYY)"""
     if not date_string:
         return "N/A"
     try:
-        return date_string.split('T')[0]
+        date_part = date_string.split('T')[0]
+        date_obj = datetime.strptime(date_part, '%Y-%m-%d')
+        return date_obj.strftime('%d/%m/%Y')
     except:
         return date_string
 
