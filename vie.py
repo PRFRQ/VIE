@@ -28,6 +28,10 @@ API_BASE_URL = "https://civiweb-api-prd.azurewebsites.net/api"
 API_SEARCH_URL = f"{API_BASE_URL}/Offers/search"
 API_DETAILS_URL = f"{API_BASE_URL}/Offers/details"
 
+# Configuration API Gemini
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
 #---------------FONCTIONS---------------
 def log(message):
     """Affiche un message avec timestamp"""
@@ -81,6 +85,75 @@ def get_offer_details(offer_id):
         log(f"Erreur lors de la récupération des détails de l'offre {offer_id}: {e}")
         return None
 
+def analyze_offer_with_ai(offer_data):
+    """Analyse une offre avec Gemini pour extraire description et mots-clés"""
+    if not GEMINI_API_KEY:
+        log("[AI] Clé API Gemini non configurée, analyse IA désactivée")
+        return None, None
+    
+    try:
+        mission_title = offer_data.get('missionTitle', '')
+        mission_description = offer_data.get('missionDescription', '')
+        organization_name = offer_data.get('organizationName', '')
+        
+        # Construire le prompt pour Gemini
+        prompt = f"""Analyse cette offre de VIE (Volontariat International en Entreprise):
+
+        Titre: {mission_title}
+        Entreprise: {organization_name}
+        Description: {mission_description}
+
+        Fournis une réponse au format JSON avec exactement ces deux clés:
+        1. "description": Une phrase courte (max 15 mots) résumant le poste
+        2. "keywords": Une liste de 5-8 mots-clés techniques/compétences à inclure dans un CV pour matcher cette offre
+
+        Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
+        
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        response = requests.post(
+            GEMINI_API_URL,
+            headers={
+                'Content-Type': 'application/json',
+                'X-goog-api-key': GEMINI_API_KEY
+            },
+            data=json.dumps(payload),
+            timeout=15
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        ai_text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+        
+        # Nettoyer le texte pour extraire le JSON
+        # Supprimer les balises markdown si présentes
+        ai_text = ai_text.replace('```json', '').replace('```', '').strip()
+        
+        # Parser le JSON
+        ai_data = json.loads(ai_text)
+        description = ai_data.get('description', '')
+        keywords = ai_data.get('keywords', [])
+        
+        # Formater les mots-clés en string
+        keywords_str = ', '.join(keywords) if isinstance(keywords, list) else str(keywords)
+        
+        log(f"[AI] Analyse réussie pour l'offre")
+        return description, keywords_str
+        
+    except Exception as e:
+        log(f"[AI] Erreur lors de l'analyse IA: {e}")
+        return None, None
+
 def send_discord_notification(offer_data):
     """Envoie une notification Discord pour une nouvelle offre"""
     try:
@@ -89,68 +162,93 @@ def send_discord_notification(offer_data):
         linkedin_url = f"https://www.linkedin.com/search/results/all/?keywords={contact_name}" if contact_name else "N/A"
         businessfrance_url = f"https://mon-vie-via.businessfrance.fr/offres/{offer_id}"
         
+        # Analyse IA de l'offre
+        ai_description, ai_keywords = analyze_offer_with_ai(offer_data)
+        
         # Prépare le contenu de la notification
+        fields = [
+            {
+                "name": "🏭 Entreprise",
+                "value": offer_data.get('organizationName', 'N/A'),
+                "inline": True
+            },
+            {
+                "name": "🌍 Pays",
+                "value": offer_data.get('countryName', 'N/A'),
+                "inline": True
+            },
+            {
+                "name": "🏙️ Ville",
+                "value": offer_data.get('cityName', 'N/A').strip() if offer_data.get('cityName') else 'N/A',
+                "inline": True
+            }
+        ]
+        
+        # Ajouter la description IA si disponible
+        if ai_description:
+            fields.append({
+                "name": "📝 Description IA",
+                "value": ai_description,
+                "inline": False
+            })
+        
+        # Ajouter les mots-clés IA si disponibles
+        if ai_keywords:
+            fields.append({
+                "name": "🔑 Mots-clés CV",
+                "value": ai_keywords,
+                "inline": False
+            })
+        
+        # Ajouter les autres champs
+        fields.extend([
+            {
+                "name": "📅 Durée (mois)",
+                "value": str(offer_data.get('missionDuration', 'N/A')),
+                "inline": True
+            },
+            {
+                "name": "🎬 Début",
+                "value": format_date(offer_data.get('missionStartDate')),
+                "inline": True
+            },
+            {
+                "name": "🏁 Fin",
+                "value": format_date(offer_data.get('missionEndDate')),
+                "inline": True
+            },
+            {
+                "name": "📧 Email",
+                "value": offer_data.get('contactEmail', 'N/A'),
+                "inline": True
+            },
+            {
+                "name": "🌐 Business France",
+                "value": f"[Voir Offre]({businessfrance_url})",
+                "inline": True
+            },
+            {
+                "name": "🔗 LinkedIn",
+                "value": f"[Rechercher Contact]({linkedin_url})" if contact_name else "N/A",
+                "inline": True
+            },
+            {
+                "name": "💼 Télétravail",
+                "value": "✅ Oui" if offer_data.get('teleworkingAvailable') else "❌ Non",
+                "inline": True
+            },
+            {
+                "name": "📆 Date de publication",
+                "value": format_date(offer_data.get('creationDate')),
+                "inline": True
+            }
+        ])
+        
         content = {
             "embeds": [
                 {
                     "title": offer_data.get('missionTitle', 'Sans titre'),
-                    "fields": [
-                        {
-                            "name": "🏭 Entreprise",
-                            "value": offer_data.get('organizationName', 'N/A'),
-                            "inline": True
-                        },
-                        {
-                            "name": "🌍 Pays",
-                            "value": offer_data.get('countryName', 'N/A'),
-                            "inline": True
-                        },
-                        {
-                            "name": "🏙️ Ville",
-                            "value": offer_data.get('cityName', 'N/A').strip() if offer_data.get('cityName') else 'N/A',
-                            "inline": True
-                        },
-                        {
-                            "name": "📅 Durée (mois)",
-                            "value": str(offer_data.get('missionDuration', 'N/A')),
-                            "inline": True
-                        },
-                        {
-                            "name": "🎬 Début",
-                            "value": format_date(offer_data.get('missionStartDate')),
-                            "inline": True
-                        },
-                        {
-                            "name": "🏁 Fin",
-                            "value": format_date(offer_data.get('missionEndDate')),
-                            "inline": True
-                        },
-                        {
-                            "name": "📧 Email",
-                            "value": offer_data.get('contactEmail', 'N/A'),
-                            "inline": True
-                        },
-                        {
-                            "name": "🌐 Business France",
-                            "value": f"[Voir Offre]({businessfrance_url})",
-                            "inline": True
-                        },
-                        {
-                            "name": "🔗 LinkedIn",
-                            "value": f"[Rechercher Contact]({linkedin_url})" if contact_name else "N/A",
-                            "inline": True
-                        },
-                        {
-                            "name": "💼 Télétravail",
-                            "value": "✅ Oui" if offer_data.get('teleworkingAvailable') else "❌ Non",
-                            "inline": True
-                        },
-                        {
-                            "name": "📆 Date de publication",
-                            "value": format_date(offer_data.get('creationDate')),
-                            "inline": True
-                        }
-                    ],
+                    "fields": fields,
                     "color": 3447003,  # Bleu
                     "timestamp": datetime.utcnow().isoformat()
                 }
