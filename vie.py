@@ -238,6 +238,11 @@ def send_discord_notification(offer_data):
                 "inline": True
             },
             {
+                "name": "💵 Indemnité",
+                "value": f"{offer_data.get('indemnite', 0):.2f} €",
+                "inline": True
+            },
+            {
                 "name": "📆 Date de publication",
                 "value": format_date(offer_data.get('creationDate')),
                 "inline": True
