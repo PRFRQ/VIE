@@ -5,7 +5,6 @@ Ce script Python permet de détecter automatiquement la publication de nouvelles
 ## ✨ Fonctionnalités
 
 - **Détection automatique** : Interroge l'API de Business France pour détecter les nouvelles offres
-- **Comparaison intelligente** : Compare les IDs des offres avec ceux présents dans `ids.txt`
 - **Analyse IA avec Gemini** : Génère automatiquement une description du poste et des mots-clés pour votre CV
 - **Tri chronologique** : Les offres sont envoyées dans l'ordre de leur publication
 - **Détails complets** : Récupère toutes les informations de l'offre (dates, indemnité, localisation, télétravail, etc.)
@@ -47,13 +46,6 @@ Ce script Python permet de détecter automatiquement la publication de nouvelles
    SEARCH_LIMIT=5000                         # Nombre max d'offres
    ```
 
-5. **Initialisation (première utilisation uniquement)** :
-   Pour éviter de recevoir toutes les anciennes offres, exécutez d'abord le script de peuplement :
-   ```bash
-   python3 populate_old_ids.py
-   ```
-   Ce script va récupérer toutes les offres existantes et les marquer comme "déjà vues" dans `ids.txt`.
-
 ## ⚙️ Configuration
 
 ### Variables d'environnement (.env)
@@ -90,19 +82,17 @@ Pour modifier les zones géographiques ou d'autres critères, éditez directemen
 
 Si l'API Gemini n'est pas configurée ou échoue, les offres seront quand même envoyées sans l'analyse IA.
 
-
 ## 🔄 Comment ça marche ?
 
 1. Le script interroge l'API `/api/Offers/search` avec les critères configurés
 2. Il extrait les IDs des offres retournées
-3. Il compare ces IDs avec ceux présents dans le fichier `ids.txt`
-4. Pour chaque nouvelle offre détectée :
+3. Pour chaque nouvelle offre détectée :
    - Récupère les détails complets via l'API `/api/Offers/details/{id}`
    - **Analyse l'offre avec Gemini IA** pour générer une description et des mots-clés CV
    - Formate les données (dates au format DD/MM/YYYY, nom du contact, etc.)
-5. **Trie les offres par ordre chronologique** de publication
-6. Envoie les notifications Discord dans l'ordre chronologique
-7. Sauvegarde les IDs traités dans `ids.txt`
+4. **Trie les offres par ordre chronologique** de publication
+5. Envoie les notifications Discord dans l'ordre chronologique
+6. Sauvegarde les IDs traités dans `ids.txt`
 
 ## 🖥️ Utilisation
 
@@ -180,7 +170,6 @@ Chaque nouvelle offre génère une notification Discord contenant :
 - ✅ **Analyse IA avec Google Gemini** : Description automatique et mots-clés CV
 - ✅ **Tri chronologique** : Offres envoyées dans l'ordre de publication
 - ✅ **Variables d'environnement** : Configuration sécurisée via fichier .env
-- ✅ **Script de peuplement** : Initialisation propre avec `populate_old_ids.py`
 - ✅ **Formatage des dates** : Format français DD/MM/YYYY
 - ✅ **Fallback automatique** : Notifications envoyées même si l'IA échoue
 - ✅ **Rate limiting Discord** : Délai de 1.5s entre chaque notification
@@ -192,7 +181,6 @@ Chaque nouvelle offre génère une notification Discord contenant :
 ```
 VIE/
 ├── vie.py                  # Script principal
-├── populate_old_ids.py     # Script d'initialisation (à exécuter une fois)
 ├── ids.txt                 # IDs des offres déjà traitées (auto-généré)
 ├── .env                    # Configuration (à créer depuis .env.example)
 ├── .env.example            # Exemple de configuration
@@ -202,11 +190,6 @@ VIE/
 ```
 
 ## 🐛 Dépannage
-
-### Le script ne trouve aucune offre
-- Assurez-vous d'avoir exécuté `populate_old_ids.py` en premier
-- Vérifiez votre variable `SEARCH_QUERY` dans le fichier `.env`
-- Vérifiez que `ids.txt` ne contient pas déjà toutes les offres
 
 ### Les notifications ne sont pas envoyées
 - Vérifiez que `DISCORD_WEBHOOK_URL` est correctement configuré dans `.env`
@@ -238,7 +221,3 @@ Ce script utilise l'API publique de Business France et l'API Google Gemini. Veil
 - Ne pas surcharger les APIs avec des requêtes trop fréquentes
 - Garder vos clés API confidentielles (fichier `.env` non versionné)
 - Respecter les quotas d'utilisation de l'API Gemini
-
-
-
-  
