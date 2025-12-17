@@ -94,37 +94,47 @@ def analyze_offer_with_ai(offer_data):
     try:
         mission_title = offer_data.get('missionTitle', '')
         mission_description = offer_data.get('missionDescription', '')
+        mission_profile = offer_data.get('missionProfile', '')
         organization_name = offer_data.get('organizationName', '')
         teleworking_available = offer_data.get('teleworkingAvailable', False)
         
         # Construire le prompt pour Gemini
-        prompt = f"""Analyse cette offre de VIE (Volontariat International en Entreprise):
+        prompt = f"""Tu es un assistant qui résume des offres VIE et extrait des mots-clés CV en mode full trash anti-salariat, avec un cynisme qui dégouline et une satire qui tape là où ça fait mal.
 
-        Titre: {mission_title}
-        Entreprise: {organization_name}
-        Description: {mission_description}
-        Télétravail disponible: {"Oui" if teleworking_available else "Non"}
-        RÈGLES OBLIGATOIRES DE STYLE ET DE CONTENU:
-        Le ton de la réponse doit être ultra-sarcastique, cynique, moqueur et trash à mort, en crachant sur la vie de patron exploiteur, le salaire de misère, la rat race de merde et l'esclavage de bureau.
-        La "description" doit ABSOLUMENT mentionner le poste/domaine/mission réels TOUT EN tournant en dérision totale le salariat comme une arnaque pour engraisser les boss pendant que tu crèves à petit feu dans cette roue de hamster pourrie.
-        Structure obligatoire: [Description concrète du poste] + [pique trash et violente sur la vie de bureau/patron/salariat/rat race/esclavage salarial de merde]
-        La "description" doit être UNE seule phrase, maximum 3 phrases.
-        La description doit être compréhensible et informative tout en restant hilarante et brutale.
-        RÈGLE CONDITIONNELLE TÉLÉTRAVAIL (TT):
-        Si l'offre mentionne du télétravail, ajoute une remarque ironique suggérant "la planque dorée pour glander en pyjama pendant que le patron te suce le sang à distance" ou "gratter tes heures comme un esclave invisible".
-        Si aucun télétravail, ajoute une remarque ironique sur l'open space comme un "goulag capitaliste où on te surveille comme un rat de labo", ou la "présence obligatoire pour que le boss profite de ton âme broyée en live".
-        EXEMPLES DE STYLE ATTENDU:
+        Contexte (données brutes):
+        - Titre: {mission_title}
+        - Entreprise: {organization_name}
+        - Télétravail disponible: {"Oui" if teleworking_available else "Non"}
+        - missionDescription: {mission_description}
+        - missionProfile (souvent la section la plus utile pour les compétences attendues): {mission_profile}
 
-        "Optimiser les process de prod aéro pour engraisser le patron, bienvenue au goulag de merde, camarade ingénieur esclave de la rat race salariale."
-        "Dev fullstack pour faire grossir la boîte de ces vampires capitalistes, en TT histoire de gratter en pyjama pendant que ton salaire de clodo te nargue."
-        "Manager une équipe marketing, ou comment faire semblant d'être utile depuis ton canapé tout en te noyer dans cette rat race de merde pour un boss qui te traite comme un kleenex usagé."
+        Objectif principal pour "description":
+        Produire une description courte (4 phrases max) qui :
+        1) Donne précisément ce que le candidat va vraiment faire (domaine, tâches concrètes, outils, livrables, environnement — au moins 3 éléments factuels obligatoires).
+        2) Défonce violemment le salariat en le présentant comme une prison dorée, une arnaque capitaliste, un esclavage moderne où tu vends ton âme et ta vie pour engraisser un patron parasite pendant que ton salaire de misère te maintient juste au-dessus du gouffre.
+        Utilise un vocabulaire trash, cru, satirique : goulag de bureau, rat race de merde, vampire en costard, roue de hamster, burnout garanti, vie cramée pour des clopinettes, kleenex humain jetable, etc.
+        Le ton doit être hilarant par son excès, sans filtre, mais sans franchir la ligne rouge légale (pas d'appel à la violence).
 
-        Fournis une réponse au format JSON avec exactement ces deux clés:
+        Exemples de phrases attendues dans "description":
+        - "Auditer les process qualité dans l'usine pour que le patron s'achète une nouvelle Porsche, bienvenue dans le goulag industriel où tu vas cramer ta jeunesse à optimiser la sueur des autres."
+        - "Développer des features en React/Node pour faire exploser le CA de ces suceurs de sang, en télétravail pour crever tranquillement en pyjama devant ton écran pendant que ton salaire de larbin te nargue."
+        - "Gérer le fleet management et les contrats fournisseurs, autrement dit devenir l'esclave administratif d'une boîte qui te jettera comme un mouchoir usagé dès la prochaine crise, tout ça en open space pour que ton burnout soit collectif et bien visible."
 
-        "description": Une phrase sarcastique (max 3 phrases) mélangeant infos concrètes du poste et dérision trash selon les règles
-        "keywords": Une liste de 5-8 mots-clés techniques/compétences à inclure dans un CV pour matcher cette offre
+        Règle conditionnelle télétravail (OBLIGATOIRE):
+        - Si Oui : intègre une pique genre "en télétravail pour gratter tes heures comme un zombie en jogging pendant que le patron te pompe à distance", "planque en pyjama idéale pour te faire exploiter sans que personne voie tes cernes", "glander chez toi tout en restant enchaîné à la machine à cash des actionnaires".
+        - Si Non : intègre une pique genre "en présentiel obligatoire dans l'open space goulag où on te surveille comme un rat", "venir cramer ta vie tous les jours sur place pour que le boss profite en live de ton désespoir", "présence physique exigée histoire de bien broyer ton âme sous les néons".
 
-        Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
+        Contraintes pour "keywords":
+        - 15 entrées.
+        - Format: liste de strings.
+        - Prioriser compétences/outils/méthodes/technos hyper concrets tirés du texte (ex: "ISO 9001", "welding", "SAP MM", "Python", "fleet management", "NDT").
+        - Zéro soft skills vagues, zéro mots bateau genre "responsabilité", "équipe", "projet".
+
+        Sortie:
+        Réponds UNIQUEMENT avec un JSON valide, sans backticks, sans texte autour, avec exactement ces deux clés:
+        - "description": string
+        - "keywords": array of strings
+        """
         
         payload = {
             "contents": [
