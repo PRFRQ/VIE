@@ -294,22 +294,20 @@ def send_discord_notification(offer_data):
 log("[START] Debut de la recherche de nouvelles offres VIE")
 
 # Configuration de la recherche
-# limit = nombre d'offres, query = mot clé, missionsDurations = durée VIE, geographicZones = continents
 payload = {
     "limit": int(os.getenv('SEARCH_LIMIT', 5000)),
     "skip": 0,
-    "latest": ["true"],  # Récupérer les dernières offres
-    "query": os.getenv('SEARCH_QUERY', 'engineer'),
-    "missionsDurations": [],
-    "geographicZones": ["2", "3", "4", "6", "5", "8"],  # Tous les continents
+    "studiesLevelId": ["4"],
+    "teletravail": ["0"],
+    "porteEnv": ["0"],
     "activitySectorId": [],
     "missionsTypesIds": [],
+    "missionsDurations": [],
+    "geographicZones": [],
     "countriesIds": [],
-    "studiesLevelId": [],
     "companiesSizes": [],
     "specializationsIds": [],
     "entreprisesIds": [0],
-    "missionStartDate": None
 }
 
 # Envoi de la requete de recherche
