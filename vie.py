@@ -30,7 +30,7 @@ API_DETAILS_URL = f"{API_BASE_URL}/Offers/details"
 
 # Configuration API Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
 #---------------FONCTIONS---------------
 def log(message):
